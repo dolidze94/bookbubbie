@@ -86,11 +86,11 @@ def batchReadSheet(spreadsheet_id):
                 for m in months_list:
                     range_names.append('%s %s!A:T' % (m, y))
                 
-        result = service.spreadsheets().values().batchGet(
+        batch_cyndi = service.spreadsheets().values().batchGet(
             spreadsheetId=spreadsheet_id, ranges=range_names).execute()
-        ranges = result.get('valueRanges', [])
+        ranges = batch_cyndi.get('valueRanges', [])
         # This returns all of Cyndi's sheets in one huge glob
-        return result
+        return batch_cyndi
     except HttpError as error:
         print(f"An error occurred: {error}")
         return error
@@ -120,55 +120,24 @@ def buildCatalogueDict():
     
     return cat_dict
 
-def getMostRecentROI(title):
-    # Months list
-    months_list = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    months_list.reverse()
-    # Get current year
-    year = datetime.date.today().year
-    # Iterate through all months for each year down to 2016
-    roi = None
-    # Break loop when the earliest ROI is found
-    while roi == None:
-        # No ROI data before year 2017
-        while year > 2016:
-            # Go backwards through months (so we're checking most recent first) and then years
-            # Loops breaks when ROI is found for the title
-            for month in months_list:
-                sheet_range = '%s %s!A:T' % (month, year)
-                error = True
-                i = 1
-                try:
-                    values = ReadSheet(sheet_range)
-                    values.pop(0)
-                    # Find which column is ROI
-                    for r in range(len(values[0])):
-                        if values[0][r] == 'ROI':
-                            roi_column = r
-                            break
-                    # Find which column is book
-                    for b in range(len(values[0])):
-                        if values[0][b] == 'Book':
-                            book_column = b
-                            break
-                    # Grab the ROI from the appropriate row
-                    if book_column and roi_column:
-                        for row in values:
-                            if row[book_column] == title:
-                                roi = row[roi_column]
-                                break
-                # There may be months in the current year that we haven't gotten to yet, have to catch those gracefully
-                except Exception as e:
-                    print("%s was not found. Exception: %s" % (sheet_range[:-4],e))
-            # Decrease the year by one once all the months of current year are checked
-            year -= 1
-        # If roi is still null after the year loop is exhausted, return an N/A string for ROI
-        # This will break us out of the roi == None loop as well as the function
-        if not roi:
-            roi = "No ROI found for this title"
-            return roi
-    # If the roi == None loop broke without returning, that means we have a value to return
-    return roi
+def populate_rois(batch_cyndi, cat_dict):
+    # For each roi in cat_dict
+    for title, values in cat_dict.items():
+        # Find the title (ie book) column from the cyndi batch dict
+        title_column_index = 0
+        roi_column_index = 0
+        # Want to record which sheet the ROI for the title is found in
+        for sheet in batch_cyndi['valueRanges']:
+            for row in sheet['values']:
+                for column_number in range(len(row)):
+                    if row[column_number].lower() == 'book':
+                        column_number = title_column_index
+                        break
+
+        # If the title from batch matches the title from cat_dict, set the batch roi to the cat_dict roi
+
+
+    return cat_dict
 
 
 
@@ -176,5 +145,6 @@ if __name__ == '__main__':
     #main()
     #tileVsSeriesDict()
     #print(getMostRecentROI('Chance for Love '))
-    #buildCatalogueDict()
-    pprint(batchReadSheet(SPREADSHEET_ID))
+    #pprint(buildCatalogueDict())
+    #pprint(batchReadSheet(SPREADSHEET_ID))
+    pprint(populate_rois(batchReadSheet(SPREADSHEET_ID), buildCatalogueDict()))
